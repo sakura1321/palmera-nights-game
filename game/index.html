@@ -3,17 +3,138 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Block Dodger</title>
+<title>Palmera Nights — an open-world crime game</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #11141b; }
-  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  /* Read aloud, never shown: the status line screen readers announce. */
-  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #10151c;
+    font-family: "Segoe UI", Arial, Helvetica, sans-serif; color: #f2f0e9; }
+  #scene { position: fixed; inset: 0; }
+  #scene canvas { display: block; }
+
+  /* --- HUD --- */
+  #hud { display: none; position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  #minimap { position: absolute; left: 16px; top: 16px; width: 190px; height: 190px;
+    border: 2px solid rgba(255,255,255,0.55); border-radius: 6px; background: #20262c; }
+  #topRight { position: absolute; right: 20px; top: 14px; text-align: right; }
+  #money { font-size: 30px; font-weight: 700; color: #7ddb6a;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.6); }
+  #wantedLabel { font-size: 11px; letter-spacing: 3px; color: #ffb3ab; opacity: 0;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.7); }
+  #stars { font-size: 26px; color: #ffd94d; text-shadow: 0 2px 4px rgba(0,0,0,0.65);
+    opacity: 0.25; }
+  #bottomLeft { position: absolute; left: 16px; bottom: 16px; width: 210px; }
+  #healthBar { height: 13px; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.5);
+    border-radius: 3px; overflow: hidden; }
+  #healthFill { height: 100%; width: 100%; background: #59c24d; transition: width 0.15s; }
+  #speed { margin-top: 6px; font-size: 20px; font-weight: 700; color: #fff;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.7); min-height: 24px; }
+  #weapon { position: absolute; right: 20px; bottom: 16px; font-size: 20px; font-weight: 700;
+    color: #ffe9a8; text-shadow: 0 2px 4px rgba(0,0,0,0.7); letter-spacing: 1px; }
+  #timer { position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+    font-size: 34px; font-weight: 800; color: #ffd94d; text-shadow: 0 2px 6px rgba(0,0,0,0.85); }
+  #timer:empty { display: none; }
+  #crosshair { display: none; position: fixed; left: 50%; top: 50%; width: 8px; height: 8px;
+    margin: -4px 0 0 -4px; border: 2px solid rgba(255,255,255,0.85); border-radius: 50%;
+    z-index: 6; pointer-events: none; box-shadow: 0 0 4px rgba(0,0,0,0.7); }
+  #objective { position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    max-width: 70%; text-align: center; font-size: 17px; font-weight: 600;
+    color: #ffe9a8; text-shadow: 0 2px 5px rgba(0,0,0,0.8);
+    background: rgba(10,14,18,0.45); padding: 7px 16px; border-radius: 6px; }
+  #prompt { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
+    font-size: 18px; font-weight: 600; color: #fff; text-shadow: 0 2px 5px rgba(0,0,0,0.85);
+    background: rgba(10,14,18,0.5); padding: 5px 14px; border-radius: 6px; }
+  #prompt:empty { display: none; }
+  #toast { position: absolute; bottom: 190px; left: 50%; transform: translateX(-50%);
+    max-width: 76%; text-align: center; font-size: 19px; font-weight: 600; color: #fff;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.9); opacity: 0; transition: opacity 0.4s; }
+
+  /* --- Full-screen overlays --- */
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; z-index: 10;
+    background: radial-gradient(ellipse at center, rgba(16,24,34,0.25) 0%, rgba(10,14,20,0.82) 100%);
+    cursor: pointer; }
+  .screen h1 { font-size: 64px; margin: 0 0 4px; letter-spacing: 2px; color: #ffd94d;
+    text-shadow: 0 4px 18px rgba(0,0,0,0.8); }
+  .screen h2 { font-size: 22px; margin: 0 0 26px; font-weight: 400; color: #cfe3f2;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8); }
+  .controls { display: grid; grid-template-columns: auto auto; gap: 4px 18px;
+    font-size: 16px; text-align: left; background: rgba(10,14,18,0.55);
+    padding: 16px 22px; border-radius: 8px; margin-bottom: 26px; }
+  .controls b { color: #ffd94d; text-align: right; }
+  .play { font-size: 21px; font-weight: 700; color: #10151c; background: #ffd94d;
+    padding: 11px 34px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.5); }
+  #menuButtons { display: none; gap: 14px; margin-bottom: 18px; }
+  .menubtn { font-size: 18px; font-weight: 700; color: #10151c; background: #ffd94d;
+    padding: 10px 26px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    border: 0; cursor: pointer; font-family: inherit; }
+  .menubtn.alt { background: rgba(16,21,28,0.75); color: #f2f0e9;
+    border: 1px solid rgba(255,255,255,0.55); }
+  #saveNote { margin-top: 14px; font-size: 16px; color: #7ddb6a; min-height: 20px;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
+  .story { max-width: 560px; font-size: 16px; line-height: 1.45; color: #e8e2d2;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.9); margin-bottom: 22px; }
+  #pauseScreen { display: none; }
 </style>
 </head>
 <body>
-<canvas id="game" aria-label="Block Dodger: move the paddle left and right to dodge falling blocks and catch coins"></canvas>
-<p id="status" role="status" aria-live="polite"></p>
-<script type="module" src="./src/main.js"></script>
+<div id="scene"></div>
+
+<div id="hud">
+  <canvas id="minimap" width="190" height="190"></canvas>
+  <div id="objective"></div>
+  <div id="timer"></div>
+  <div id="topRight">
+    <div id="money">$120</div>
+    <div id="wantedLabel">WANTED</div>
+    <div id="stars">☆☆☆☆☆</div>
+  </div>
+  <div id="bottomLeft">
+    <div id="healthBar"><div id="healthFill"></div></div>
+    <div id="speed"></div>
+  </div>
+  <div id="weapon"></div>
+  <div id="prompt"></div>
+  <div id="toast"></div>
+</div>
+<div id="crosshair"></div>
+
+<div id="startScreen" class="screen">
+  <h1>PALMERA NIGHTS</h1>
+  <h2>Welcome to Palmera — a sun-soaked city that never checks your past</h2>
+  <p class="story">You are Jax Marlowe, fresh off the bus with $120 and a borrowed name.
+    Mechanic Rosa Delgado will set you up — if you can reach her garage and prove
+    you can handle a car that is not yours. After that, Palmera is yours to take.</p>
+  <div class="controls">
+    <b>W A S D</b><span>Move / drive</span>
+    <b>Mouse</b><span>Look</span>
+    <b>Shift</b><span>Sprint</span>
+    <b>E</b><span>Enter / exit car, take items</span>
+    <b>F / Click</b><span>Punch — or shoot, once you have the pistol</span>
+    <b>R</b><span>Reload</span>
+    <b>Space</b><span>Handbrake</span>
+    <b>M</b><span>Mute sound</span>
+    <b>Esc</b><span>Pause (save from the pause menu)</span>
+  </div>
+  <div id="menuButtons">
+    <button class="menubtn" id="continueBtn" type="button">CONTINUE</button>
+    <button class="menubtn alt" id="newGameBtn" type="button">NEW GAME</button>
+  </div>
+  <div class="play" id="playHint">CLICK TO PLAY</div>
+</div>
+
+<div id="pauseScreen" class="screen">
+  <h1>PAUSED</h1>
+  <h2>Palmera waits for no one — but it will wait for you</h2>
+  <button class="menubtn" id="saveBtn" type="button">SAVE GAME</button>
+  <div id="saveNote"></div>
+  <div class="play" style="margin-top: 18px;">CLICK TO RESUME</div>
+</div>
+
+<script src="./vendor/three.min.js"></script>
+<script src="./src/util.js"></script>
+<script src="./src/audio.js"></script>
+<script src="./src/city.js"></script>
+<script src="./src/vehicles.js"></script>
+<script src="./src/people.js"></script>
+<script src="./src/game.js"></script>
 </body>
 </html>
